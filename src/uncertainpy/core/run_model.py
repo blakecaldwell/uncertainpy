@@ -425,20 +425,12 @@ class RunModel(ParameterBase):
         model_parameters = self.create_model_parameters(nodes, uncertain_parameters)
 
         if self.CPUs:
-            import multiprocess as mp
+            from mpi4py.futures import MPICommExecutor
 
-            pool = mp.Pool(processes=self.CPUs)
-
-            # pool.map(self._parallel.run, model_parameters)
-            # chunksize = int(np.ceil(len(model_parameters)/self.CPUs))
-            chunksize = 1
-            for result in tqdm(pool.imap(self._parallel.run, model_parameters, chunksize),
-                               desc="Running model",
-                               total=len(nodes.T)):
-
-                results.append(result)
-
-            pool.close()
+            with MPICommExecutor(max_workers=self.CPUs) as executor:
+                chunksize = int(np.ceil(len(model_parameters)/self.CPUs))
+                for result in tqdm(executor.map(self._parallel.run, model_parameters, chunksize=chunksize)):
+                    results.append(result)
 
         else:
             for result in tqdm(imap(self._parallel.run, model_parameters),
